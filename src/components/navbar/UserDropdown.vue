@@ -24,7 +24,6 @@
             <div v-if="showDropdown" class="dropdown">
                 <template v-if="!isAuthenticated">
                     <a href="/login" class="dropdown-item">Se connecter</a>
-                    <a href="/register" class="dropdown-item">S'inscrire</a>
                 </template>
                 <template v-else>
                     <a href="#" @click="handleLogout" class="dropdown-item">Se déconnecter</a>

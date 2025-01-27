@@ -59,7 +59,7 @@ const route = useRoute();
 
 // Déterminer si la route est une page de login ou register
 const isAuthPage = computed(() => {
-    return route.path === "/login" || route.path === "/register" || route.path === "/add-requestd";
+    return route.path === "/login" || route.path === "/register";
 });
 
 onMounted(() => {

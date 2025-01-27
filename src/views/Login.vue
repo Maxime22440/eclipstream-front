@@ -39,10 +39,10 @@
                     <div v-if="loading" class="loading-spinner">Chargement...</div>
                 </form>
 
-                <div class="register-link">
-                    <span class="text-white">Nouveau ? Créez votre compte</span>
-                    <a href="/register" class="register-here"> ici</a>
-                </div>
+<!--                <div class="register-link">-->
+<!--                    <span class="text-white">Nouveau ? Créez votre compte</span>-->
+<!--                    <a href="/register" class="register-here"> ici</a>-->
+<!--                </div>-->
             </div>
         </div>
     </div>

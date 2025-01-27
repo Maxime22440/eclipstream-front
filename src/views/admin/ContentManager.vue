@@ -70,11 +70,6 @@ const router = useRouter();
 
 console.log('isAuthenticated dans le composant:', userStore.isAuthenticated);
 console.log('isAdmin dans le composant:', userStore.isAdmin);
-
-// Vérifier si l'utilisateur est authentifié et Admin
-if (!userStore.isAuthenticated || !userStore.isAdmin) {
-    router.push('/login');
-}
 </script>
 
 <style scoped>
