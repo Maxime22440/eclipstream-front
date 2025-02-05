@@ -148,16 +148,14 @@ onUnmounted(() => {
 
 <style scoped>
 .container {
-    background-color: #131213;
     color: white;
     padding: 25px;
     border-radius: 15px;
     text-align: center;
     width: 100%;
-    max-width: 800px;
+    max-width: 1000px;
     margin-top: 40px;
     overflow-x: hidden;
-    box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.5); /* Ajout du box-shadow */
 }
 
 h1 {

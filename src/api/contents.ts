@@ -29,3 +29,15 @@ export const fetchContent = async (uuid: string) => {
     throw error;
   }
 };
+
+// Nouvelle fonction pour récupérer les contenus non uploadés
+export const fetchNotUploadedContent = async () => {
+  try {
+    const response = await api.get('/contents/not-uploaded');
+    // On retourne la propriété "contents" contenue dans la réponse
+    return response.data.contents;
+  } catch (error) {
+    console.error("Erreur lors de la récupération des contenus non uploadés", error);
+    throw error;
+  }
+};

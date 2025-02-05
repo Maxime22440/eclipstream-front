@@ -260,7 +260,7 @@
 
 <script setup lang="ts">
 import {onMounted, ref} from 'vue';
-import {addContent} from '@/api/content';
+import {addContent} from '@/api/contents';
 import {fetchGenres} from '@/api/genres';
 import {useNotificationStore} from '@/stores/useNotificationStore';  // Importer le store de notifications
 import {useRouter} from 'vue-router';  // Pour la redirection après succès
@@ -363,7 +363,6 @@ const handleContentUpload = async () => {
 
   const genreIds = genres.value.map((genre) => genre.id);  // Extrait uniquement les IDs
   console.log("Identifiants des genres extraits:", genreIds);  // Vérifie que ce sont des nombres
-
 
   // Créer un objet FormData pour envoyer les fichiers et les autres données
   const formData = new FormData();

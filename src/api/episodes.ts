@@ -14,7 +14,6 @@ export const fetchEpisodes = async (seasonId: string) => {
 };
 
 // Fonction pour ajouter un nouvel épisode à une saison
-// episodes.ts
 export const addEpisode = async (
     seasonId: string,
     episodeData: {
@@ -35,5 +34,17 @@ export const addEpisode = async (
         console.error('Erreur lors de l\'ajout de l\'épisode', error);
         throw error;
     }
+};
+
+// Nouvelle fonction pour récupérer les épisodes non uploadés
+export const fetchNotUploadedEpisodes = async () => {
+  try {
+    const response = await api.get('/episodes/not-uploaded');
+    // On retourne la propriété "episodes" contenue dans la réponse
+    return response.data.episodes;
+  } catch (error) {
+    console.error("Erreur lors de la récupération des épisodes non uploadés", error);
+    throw error;
+  }
 };
 

@@ -1,56 +1,69 @@
 <template>
-    <div class="content-manager-page">
-        <div class="content-manager-container">
-            <!-- Navigation par onglets -->
-            <div class="tabs">
-                <button
-                    class="tab"
-                    :class="{ active: currentTab === 'movie' }"
-                    @click="currentTab = 'movie'">
-                    Film
-                </button>
-                <button
-                    class="tab"
-                    :class="{ active: currentTab === 'series' }"
-                    @click="currentTab = 'series'">
-                    Série
-                </button>
-                <button
-                    class="tab"
-                    :class="{ active: currentTab === 'anime-movie' }"
-                    @click="currentTab = 'anime-movie'">
-                    Animé (Film)
-                </button>
-                <button
-                    class="tab"
-                    :class="{ active: currentTab === 'anime-series' }"
-                    @click="currentTab = 'anime-series'">
-                    Animé (Série)
-                </button>
-                <button
-                    class="tab"
-                    :class="{ active: currentTab === 'add-season' }"
-                    @click="currentTab = 'add-season'">
-                    Ajouter une Saison
-                </button>
-                <button
-                    class="tab"
-                    :class="{ active: currentTab === 'add-episode' }"
-                    @click="currentTab = 'add-episode'">
-                    Ajouter un Épisode
-                </button>
-            </div>
+  <div class="content-manager-page">
+    <div class="content-manager-container">
+      <!-- Navigation par onglets -->
+      <div class="tabs">
+        <button
+          class="tab"
+          :class="{ active: currentTab === 'movie' }"
+          @click="currentTab = 'movie'">
+          Film
+        </button>
+        <button
+          class="tab"
+          :class="{ active: currentTab === 'series' }"
+          @click="currentTab = 'series'">
+          Série
+        </button>
+        <button
+          class="tab"
+          :class="{ active: currentTab === 'anime-movie' }"
+          @click="currentTab = 'anime-movie'">
+          Animé (Film)
+        </button>
+        <button
+          class="tab"
+          :class="{ active: currentTab === 'anime-series' }"
+          @click="currentTab = 'anime-series'">
+          Animé (Série)
+        </button>
+        <button
+          class="tab"
+          :class="{ active: currentTab === 'add-season' }"
+          @click="currentTab = 'add-season'">
+          Ajouter une Saison
+        </button>
+        <button
+          class="tab"
+          :class="{ active: currentTab === 'add-episode' }"
+          @click="currentTab = 'add-episode'">
+          Ajouter un Épisode
+        </button>
+        <!-- Nouvel onglet pour l'upload -->
+        <button
+          class="tab"
+          :class="{ active: currentTab === 'upload' }"
+          @click="currentTab = 'upload'">
+          Upload
+        </button>
+      </div>
 
-            <!-- Composant générique pour gérer les types de contenu -->
-            <ContentForm v-if="currentTab !== 'upload' && currentTab !== 'add-season' && currentTab !== 'add-episode'" :contentType="currentTab" />
+      <!-- Composant générique pour gérer les types de contenu -->
+      <ContentForm
+        v-if="currentTab !== 'upload' && currentTab !== 'add-season' && currentTab !== 'add-episode'"
+        :contentType="currentTab"
+      />
 
-            <!-- Formulaire pour ajouter une saison -->
-            <AddSeasonForm v-if="currentTab === 'add-season'" />
+      <!-- Formulaire pour ajouter une saison -->
+      <AddSeasonForm v-if="currentTab === 'add-season'" />
 
-            <!-- Formulaire pour ajouter un épisode -->
-            <EpisodeForm v-if="currentTab === 'add-episode'" />
-        </div>
+      <!-- Formulaire pour ajouter un épisode -->
+      <EpisodeForm v-if="currentTab === 'add-episode'" />
+
+      <!-- Formulaire pour l'upload de contenus -->
+      <UploadForm v-if="currentTab === 'upload'" />
     </div>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -60,8 +73,9 @@ import { useRouter } from 'vue-router';
 import ContentForm from '@/components/Admin/ContentForm.vue';
 import AddSeasonForm from '@/components/Admin/SeasonForm.vue';
 import EpisodeForm from "@/components/Admin/EpisodeForm.vue";
+import UploadForm from "@/components/Admin/UploadForm.vue";
 
-// Onglet actif
+// Définition de l'onglet actif
 const currentTab = ref<'movie' | 'series' | 'anime-movie' | 'anime-series' | 'add-season' | 'add-episode' | 'upload'>('movie');
 
 // Accès au store utilisateur
@@ -71,6 +85,7 @@ const router = useRouter();
 console.log('isAuthenticated dans le composant:', userStore.isAuthenticated);
 console.log('isAdmin dans le composant:', userStore.isAdmin);
 </script>
+
 
 <style scoped>
 /* Styles principaux pour la page de gestion de contenu */
@@ -84,7 +99,7 @@ console.log('isAdmin dans le composant:', userStore.isAdmin);
 .content-manager-container {
     width: 1000px;
     background-color: #131213;
-    padding: 40px;
+    padding: 30px;
     border-radius: 15px;
     box-shadow: 0 4px 15px rgba(35, 35, 35, 0.3), 0 8px 25px rgba(0, 0, 0, 0.9);
 }

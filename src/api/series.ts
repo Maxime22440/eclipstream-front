@@ -4,7 +4,7 @@ import api from '@/plugins/axios';
 export const fetchAllSeries = async () => {
     try {
       // Utiliser le nouvel endpoint '/all-series'
-        const response = await api.get('/contents/all-series',{ withCredentials: true });
+        const response = await api.get('/contents/all-series');
         console.log('Données reçues :', response.data);
         return response.data.series;
     } catch (error) {

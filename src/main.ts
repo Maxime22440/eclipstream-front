@@ -15,8 +15,4 @@ app.component('Multiselect', Multiselect);
 app.use(router);
 app.use(createPinia());
 
-axios.get('/csrf-cookie').then(() => {
-  console.log('CSRF token fetched successfully.');
-});
-
 app.mount('#app');

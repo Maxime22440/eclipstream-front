@@ -53,30 +53,31 @@ export function useAuth() {
     try {
       // Étape 1 : Envoyer les identifiants pour le login
       const response = await login(email, password);
-      console.log('Login réussi, réponse :', response.data);
+      const responseData = response.data || response; // Si pas de data, utiliser directement response
+      console.log('Données extraites de la réponse :', responseData);
 
-      // Étape 2 : Récupérer les informations utilisateur après le login
-      const userResponse = await api.get('/user');
-      console.log('Données utilisateur récupérées :', userResponse.data);
+      // Étape 2 : Récupérer le token
+      const token = responseData.token;
+      if (token) {
+        localStorage.setItem('auth_token', token);
+        // Étape 3 : Récupérer les informations utilisateur après le login
+        const userResponse = await api.get('/user');
+        console.log('Données utilisateur récupérées :', userResponse.data);
 
-      // Étape 3 : Enregistrer les informations utilisateur dans le store
-      userStore.setUser(userResponse.data);
-      console.log('Utilisateur après setUser:', userStore.user);
+        // Étape 4 : Enregistrer les informations utilisateur dans le store
+        userStore.setUser(userResponse.data);
+        console.log('Utilisateur après setUser:', userStore.user);
+      } else {
+        throw new Error('Token absent dans la réponse');
+      }
     } catch (err: any) {
       // Gestion des erreurs
-      if (err.response) {
-        console.error('Erreur de réponse API :', err.response.status, err.response.data);
-      } else if (err.request) {
-        console.error('Aucune réponse du serveur :', err.request);
-      } else {
-        console.error('Erreur lors de la configuration de la requête :', err.message);
-      }
-      error.value = err.response?.data?.message || 'Erreur lors de la connexion';
+      handleApiError(err);
+      console.error(err);
     } finally {
       loading.value = false;
     }
   };
-
 
   const registerUser = async (username: string, email: string, password: string) => {
     loading.value = true;
@@ -119,6 +120,7 @@ export function useAuth() {
       }
     } finally {
       await userStore.clearUser();
+      localStorage.removeItem('auth_token');
     }
   };
 

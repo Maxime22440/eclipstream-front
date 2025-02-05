@@ -53,8 +53,9 @@
             preload="auto"
             controlsList="nodownload"
             oncontextmenu="return false;"
+            @error="handleVideoError"
           >
-            <source :src="fullVideoLink"
+            <source :src="signedVideoUrl"
                     type="video/mp4"/>
           </video>
         </div>
@@ -156,55 +157,328 @@
 </template>
 
 <script setup lang="ts">
-import {ref, onMounted, computed, watch} from 'vue';
-import {useRoute} from 'vue-router';
-import {useRouter} from 'vue-router';
+import { ref, onMounted, onUnmounted, computed, watch, nextTick } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
+import { getSignedHLSPlaylistSUrlForMovie, getSignedHLSPlaylistUrlForEpisode } from '@/api/streaming';
 import { useUserStore } from '@/stores/useUserStore';
 import { useNotificationStore } from '@/stores/useNotificationStore';
-import {fetchContent} from '@/api/content'; // Utilisation de ta méthode API existante
+import { fetchContent } from '@/api/contents';
 import EpisodeNavigation from "@/components/Content/EpisodeNavigation.vue";
 import MovieIcon from '@/components/icons/MovieIcon.vue';
+import Hls from 'hls.js';
 
+// ------------------------
+// CONSTANTES ET CONFIGURATION
+// ------------------------
+const REFRESH_INTERVAL_MS =  11100000; // Intervalle de renouvellement en ms
+
+// ------------------------
+// STORES ET ROUTES
+// ------------------------
 const userStore = useUserStore();
 const notificationStore = useNotificationStore();
 const isAuthenticated = computed(() => userStore.isAuthenticated);
-const backendUrl = import.meta.env.VITE_BACKEND_URL;
-
-// Récupération de l'UUID depuis les paramètres de l'URL
 const route = useRoute();
 const router = useRouter();
+
+// ------------------------
+// Variables réactives
+// ------------------------
+const backendUrl = import.meta.env.VITE_BACKEND_URL;
 const contentUuid = (route.params.contentUuid || route.params.uuid) as string;
 const episodeUuid = route.params.episodeUuid as string | null;
 
-// Variables réactives pour les données du contenu
+const signedVideoUrl = ref<string>('');
 const content = ref({
   title: '',
-  type: '', // `movie`, `series`, etc.
+  type: '', // 'movie', 'series', etc.
   rating: 0,
-  genres: [] as string[], // Liste des genres (noms uniquement)
+  genres: [] as string[],
   country: '',
-  duration: '', // Durée totale (en minutes ou formatée)
+  duration: '',
   description: '',
-  cast: [] as string[], // Liste des acteurs (noms uniquement)
+  cast: [] as string[],
   stream_link: '',
   seasons: [] as Array<{
-    seasonNumber: number; // Numéro de la saison
+    seasonNumber: number;
     episodes: Array<{
       uuid: string,
-      episodeNumber: number; // Numéro de l'épisode
-      title: string; // Titre de l'épisode
-      duration: number; // Durée en minutes
-      description: string; // Description de l'épisode
-      stream_link?: string;
+      episodeNumber: number,
+      title: string,
+      duration: number,
+      description: string,
+      stream_link?: string,
+      rating: number,
     }>;
-  }>, // Liste des saisons et leurs épisodes
+  }>,
 });
+const poster = ref('');
+const thumbnail = ref('');
+const isSmallScreen = ref(window.innerWidth < 768);
+const error = ref<string | null>(null);
+const imageLoaded = ref(false);
+const isPlaying = ref(false);
 
-// Fonction pour déclencher une notification
+const videoPlayer = ref<HTMLVideoElement | null>(null);
+
+// Intervalle et instance HLS
+let refreshInterval: number | null = null;
+let hls: Hls | null = null;
+
+// ------------------------
+// Fonctions utilitaires
+// ------------------------
 const showLoginNotification = () => {
   notificationStore.addNotification('error', 'Veuillez vous connecter pour regarder ce contenu.');
 };
 
+// ------------------------
+// Fonctions de chargement de contenu
+// ------------------------
+const loadContent = async () => {
+  try {
+    const data = await fetchContent(contentUuid);
+    console.log('Données reçues depuis l’API:', data);
+    content.value = {
+      title: data.title,
+      type: data.type,
+      rating: data.imdb_rating,
+      genres: data.genres.map((genre: any) => genre.name),
+      country: data.country,
+      duration: data.duration,
+      description: data.description,
+      cast: data.actors.map((actor: any) => actor.name),
+      stream_link: data.stream_link,
+      seasons: (data.seasons || []).map((season: any) => ({
+        seasonNumber: season.season_number,
+        episodes: (season.episodes || []).map((episode: any) => ({
+          uuid: episode.uuid,
+          episodeNumber: episode.episode_number,
+          title: episode.title,
+          duration: episode.duration,
+          description: episode.description,
+          stream_link: episode.stream_link,
+          rating: episode.imdb_rating,
+        })),
+      })),
+    };
+    console.log('Données des saisons reçues :', content.value.seasons);
+    console.log('UUID d’épisode actif :', episodeUuid);
+    poster.value = data.poster_path;
+    thumbnail.value = data.thumbnail_path;
+  } catch (err) {
+    error.value = 'Erreur lors de la récupération des données.';
+    console.error(err);
+  }
+};
+
+const fetchSignedHLSUrl = async (): Promise<string> => {
+  try {
+    if (content.value.type === 'movie') {
+      return getSignedHLSPlaylistSUrlForMovie(contentUuid);
+    } else if (content.value.type === 'series' && episodeUuid) {
+      return getSignedHLSPlaylistUrlForEpisode(episodeUuid);
+    } else {
+      throw new Error('Type de contenu ou UUID d\'épisode invalide.');
+    }
+  } catch (err) {
+    console.error('Erreur lors de la génération de l\'URL signée HLS :', err);
+    throw err;
+  }
+};
+
+// ------------------------
+// Initialisation HLS
+// ------------------------
+const initializeHLS = async () => {
+  try {
+    let url = '';
+    console.log('Début d\'initialisation HLS, type de contenu :', content.value.type);
+    if (content.value.type === 'movie') {
+      console.log('Obtention de l\'URL signée pour un film, contentUuid :', contentUuid);
+      url = getSignedHLSPlaylistSUrlForMovie(contentUuid);
+      console.log('URL signée pour le film obtenue :', url);
+    } else if (content.value.type === 'series' && episodeUuid) {
+      console.log('Obtention de l\'URL signée pour la playlist d\'un épisode, episodeUuid :', episodeUuid);
+      url = getSignedHLSPlaylistUrlForEpisode(episodeUuid);
+      console.log('URL signée pour la playlist d\'épisode obtenue :', url);
+    } else {
+      throw new Error('Type de contenu ou UUID d\'épisode invalide.');
+    }
+    signedVideoUrl.value = url;
+    console.log('URL signée HLS (playlist) assignée :', signedVideoUrl.value);
+    if (Hls.isSupported()) {
+      console.log('HLS est supporté, initialisation de Hls.js');
+      hls = new Hls({
+        xhrSetup: (xhr, requestUrl) => {
+          const token = localStorage.getItem('auth_token');
+          if (token) {
+            xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+            console.log('xhrSetup: ajout du header Authorization pour', requestUrl);
+          } else {
+            console.warn('xhrSetup: aucun token trouvé pour', requestUrl);
+          }
+        }
+      });
+      hls.loadSource(signedVideoUrl.value);
+      hls.attachMedia(videoPlayer.value as HTMLVideoElement);
+      hls.on(Hls.Events.MANIFEST_PARSED, (event, data) => {
+        console.log('MANIFEST_PARSED event déclenché :', event, data);
+        videoPlayer.value?.play()
+          .then(() => console.log('Lecture démarrée avec succès.'))
+          .catch((err) => console.error('Erreur lors du démarrage de la lecture :', err));
+      });
+      hls.on(Hls.Events.ERROR, (event, data) => {
+        console.error('HLS ERROR event :', event, data);
+      });
+      hls.on(Hls.Events.FRAG_LOADED, (event, data) => {
+        console.log('FRAG_LOADED event, fragment chargé :', data.frag.url);
+      });
+      startAutoRefresh(REFRESH_INTERVAL_MS);
+    } else if (videoPlayer.value?.canPlayType('application/vnd.apple.mpegurl')) {
+      console.log('HLS n\'est pas supporté via hls.js, utilisation du lecteur natif');
+      videoPlayer.value.src = signedVideoUrl.value;
+      videoPlayer.value.addEventListener('loadedmetadata', () => {
+        console.log('loadedmetadata event déclenché, démarrage de la lecture');
+        videoPlayer.value?.play()
+          .then(() => console.log('Lecture démarrée avec succès (natif).'))
+          .catch((err) => console.error('Erreur lors du démarrage de la lecture (natif) :', err));
+      });
+    } else {
+      throw new Error('HLS non supporté par ce navigateur.');
+    }
+  } catch (err) {
+    console.error('Erreur lors de l\'initialisation de HLS :', err);
+    notificationStore.addNotification('error', 'Erreur lors du chargement de la vidéo.');
+  }
+};
+
+// ------------------------
+// Renouvellement de l'URL signée HLS
+// ------------------------
+const renewHLSUrl = async () => {
+  try {
+    const currentTime = videoPlayer.value ? videoPlayer.value.currentTime : 0;
+    const wasPaused = videoPlayer.value ? videoPlayer.value.paused : true;
+    console.log('Temps de lecture actuel avant renouvellement:', currentTime, 'Était en pause:', wasPaused);
+    const newUrl = await fetchSignedHLSUrl();
+    console.log('Renouvellement de l\'URL signée HLS :', newUrl);
+    if (hls) {
+      hls.loadSource(newUrl);
+      hls.attachMedia(videoPlayer.value as HTMLVideoElement);
+      hls.once(Hls.Events.MANIFEST_PARSED, (event, data) => {
+        console.log('Manifest parsed après renouvellement. Repositionnement à', currentTime);
+        if (videoPlayer.value) {
+          videoPlayer.value.currentTime = currentTime;
+          if (!wasPaused) {
+            videoPlayer.value.play()
+              .then(() => console.log('Lecture reprise à', currentTime))
+              .catch((err) => console.error('Erreur lors du démarrage de la lecture après renouvellement :', err));
+          } else {
+            videoPlayer.value.pause();
+            console.log('Le lecteur était en pause, il reste en pause.');
+          }
+        }
+      });
+      signedVideoUrl.value = newUrl;
+    } else if (videoPlayer.value) {
+      const isPaused = videoPlayer.value.paused;
+      videoPlayer.value.src = newUrl;
+      videoPlayer.value.load();
+      videoPlayer.value.onloadedmetadata = () => {
+        videoPlayer.value.currentTime = currentTime;
+        if (!isPaused) {
+          videoPlayer.value.play()
+            .then(() => console.log('Lecture reprise (natif) à', currentTime))
+            .catch((err) => console.error('Erreur lors du démarrage de la lecture (natif) :', err));
+        } else {
+          videoPlayer.value.pause();
+          console.log('Le lecteur était en pause (natif), il reste en pause.');
+        }
+      };
+    }
+  } catch (err) {
+    console.error('Erreur lors du renouvellement de l\'URL signée HLS :', err);
+    notificationStore.addNotification('error', 'Erreur lors du renouvellement de la vidéo.');
+  }
+};
+
+const startAutoRefresh = (intervalMs: number) => {
+  if (refreshInterval) clearInterval(refreshInterval);
+  refreshInterval = window.setInterval(() => {
+    console.log('Renouvellement de l\'URL signée HLS...');
+    renewHLSUrl();
+  }, intervalMs);
+};
+
+const stopAutoRefresh = () => {
+  if (refreshInterval) {
+    clearInterval(refreshInterval);
+    refreshInterval = null;
+  }
+  if (hls) {
+    hls.destroy();
+    hls = null;
+  }
+};
+
+// ------------------------
+// Fonctions pour le lecteur et les erreurs
+// ------------------------
+const playVideo = async () => {
+  isPlaying.value = true;
+  error.value = null;
+  await nextTick();
+  await initializeHLS();
+};
+
+const handleVideoError = (event: Event) => {
+  const video = event.target as HTMLVideoElement;
+  console.error('Erreur de lecture de la vidéo:', video.error);
+  error.value = 'Erreur lors du chargement de la vidéo.';
+};
+
+// ------------------------
+// Fonctions utilitaires pour le formatage et l'image
+// ------------------------
+const formatDuration = (minutes: string | number | null) => {
+  if (!minutes || isNaN(Number(minutes))) return 'Durée inconnue';
+  const totalMinutes = Number(minutes);
+  const hours = Math.floor(totalMinutes / 60);
+  const remainingMinutes = totalMinutes % 60;
+  return hours < 1 ? `${remainingMinutes}m` : `${hours}h${remainingMinutes}m`;
+};
+
+const getImageComponentOrPath = (path: string) => {
+  const baseUrl = backendUrl.replace('/api', '');
+  return path ? `${baseUrl}/storage/${path}` : null;
+};
+
+// ------------------------
+// Gestion des événements (redimensionnement, montage/démontage)
+// ------------------------
+const handleResize = () => {
+  isSmallScreen.value = window.innerWidth < 768;
+};
+
+window.addEventListener('resize', handleResize);
+
+onMounted(() => {
+  if (!contentUuid) {
+    error.value = 'Aucun UUID de contenu fourni dans l’URL.';
+    return;
+  }
+  loadContent();
+});
+
+onUnmounted(() => {
+  stopAutoRefresh();
+  window.removeEventListener('resize', handleResize);
+});
+
+// ------------------------
+// Gestion de la navigation et des changements d'épisodes
+// ------------------------
 const currentSeason = computed(() => {
   return content.value.seasons.find((season) =>
     season.episodes.some((episode) => episode.uuid === episodeUuid)
@@ -216,157 +490,27 @@ const episode = computed(() => {
   return currentSeason.value.episodes.find((ep) => ep.uuid === episodeUuid);
 });
 
-// Calcul pour déterminer si la navigation des épisodes doit être affichée
 const isEpisodeNavigationVisible = computed(() => {
   return content.value.type === 'series' || content.value.type === 'anime-series';
 });
 
-const poster = ref('');
-const thumbnail = ref('');
-const isSmallScreen = ref(window.innerWidth < 768);
-const error = ref<string | null>(null);
-const imageLoaded = ref(false);
-const videoLink = ref('');
-const isPlaying = ref(false); // Variable pour afficher ou non le lecteur vidéo
-
-// Fonction pour récupérer le contenu depuis l'API
-const loadContent = async () => {
-  try {
-    const data = await fetchContent(contentUuid); // Appel de ta méthode API `fetchContent`
-    console.log('Données reçues depuis l’API:', data); // Vérifie les acteurs ici
-
-    // Mise à jour des données du contenu
-    content.value = {
-      title: data.title,
-      type: data.type, // Utilisé pour afficher des champs conditionnels
-      rating: data.imdb_rating,
-      genres: data.genres.map((genre: any) => genre.name),
-      country: data.country,
-      duration: data.duration, // Durée en minutes
-      description: data.description,
-      cast: data.actors.map((actor: any) => actor.name),
-      stream_link: data.stream_link,
-      seasons: (data.seasons || []).map((season: any) => ({
-        seasonNumber: season.season_number,
-        episodes: (season.episodes || []).map((episode: any) => ({
-          uuid: episode.uuid, // UUID de l'épisode
-          episodeNumber: episode.episode_number,
-          title: episode.title,
-          rating: episode.imdb_rating,
-          duration: episode.duration,
-          description: episode.description,
-          stream_link: episode.stream_link,
-        })),
-      })) // Inclure les saisons et les épisodes
-    };
-    console.log('Données des saisons reçues :', content.value.seasons);
-    console.log('UUID d’épisode actif :', episodeUuid);
-
-
-    poster.value = data.poster_path;
-    thumbnail.value = data.thumbnail_path;
-
-    // Détermination du stream_link en fonction du type de contenu
-    if (episodeUuid) {
-      const currentEp = episode.value;
-      if (currentEp && currentEp.stream_link) {
-        videoLink.value = currentEp.stream_link;
-      } else {
-        console.warn('Stream link pour l’épisode non trouvé.');
-        videoLink.value = ''; // Ou une valeur par défaut
-      }
-    } else {
-      videoLink.value = data.stream_link;
-    }
-
-    console.log('Lien relatif vidéo (API):', videoLink.value);
-    console.log('Lien complet vidéo:', fullVideoLink.value);
-  } catch (err) {
-    error.value = 'Erreur lors de la récupération des données.';
-    console.error(err);
-  }
-};
-
-const playVideo = () => {
-  isPlaying.value = true;
-  error.value = null; // Réinitialise les erreurs
-  console.log('Lecture vidéo via :', fullVideoLink.value);
-};
-
-// Fonction pour formater la durée en minutes vers hh:mm
-const formatDuration = (minutes: string | number | null) => {
-  if (!minutes || isNaN(Number(minutes))) return 'Durée inconnue';
-
-  const totalMinutes = Number(minutes);
-  const hours = Math.floor(totalMinutes / 60);
-  const remainingMinutes = totalMinutes % 60;
-
-  // Retourne uniquement les minutes si moins de 1 heure
-  if (hours < 1) {
-    return `${remainingMinutes}m`;
-  }
-
-  // Retourne le format "XhYm" si plus d'une heure
-  return `${hours}h${remainingMinutes}m`;
-};
-
-const getImageComponentOrPath = (path: string) => {
-  const baseUrl = backendUrl.replace('/api', ''); // Retire `/api` si présent
-  return path
-    ? `${baseUrl}/storage/${path}` // Chemin de l'image si disponible
-    : null; // Retourne null si aucune image
-};
-
-const fullVideoLink = computed(() => {
-  if (!videoLink.value) {
-    console.log('videoLink.value est vide ou non défini');
-    return '';
-  }
-  const result = `${backendUrl}${videoLink.value}`;
-  console.log('fullVideoLink calculé :', result);
-  return result;
-});
-
-// Écouter le redimensionnement de l'écran
-window.addEventListener('resize', () => {
-  isSmallScreen.value = window.innerWidth < 768;
-});
-
-onMounted(() => {
-  if (!contentUuid) {
-    error.value = 'Aucun UUID de contenu fourni dans l’URL.';
-    return;
-  }
-
-  loadContent();
-});
-
 const onSeasonChange = (newSeasonNumber: number) => {
   console.log("Changement de saison détecté :", newSeasonNumber);
-
-  // Trouver la nouvelle saison sélectionnée
   const selectedSeason = content.value.seasons.find(
     (season) => season.seasonNumber === newSeasonNumber
   );
   console.log("Saison sélectionnée :", selectedSeason);
-
-  // Si la saison ou les épisodes ne sont pas valides, on arrête là
   if (!selectedSeason || selectedSeason.episodes.length === 0) {
     console.warn("Aucune saison valide trouvée ou pas d'épisodes disponibles.");
     return;
   }
-
-  // Récupérer le premier épisode de la saison sélectionnée
   const firstEpisode = selectedSeason.episodes[0];
   console.log("Premier épisode de la saison :", firstEpisode);
-
-  // Met à jour l'URL pour refléter le changement
   router.push(`/content-player/${contentUuid}/episode/${firstEpisode.uuid}`);
-  console.log("Navigation vers :", `/content-player/${contentUuid}/episode/${firstEpisode.uuid}`);
 };
 
-const onEpisodeChange = (episodeUuid: string) => {
-  router.push(`/content-player/${contentUuid}/episode/${episodeUuid}`);
+const onEpisodeChange = (newEpisodeUuid: string) => {
+  router.push(`/content-player/${contentUuid}/episode/${newEpisodeUuid}`);
 };
 
 const currentEpisode = computed(() => {
@@ -376,106 +520,65 @@ const currentEpisode = computed(() => {
 
 const previousEpisode = computed(() => {
   if (!currentSeason.value) return null;
-
-  // Trouver l'index de l'épisode actuel dans la saison courante
   const currentIndex = currentSeason.value.episodes.findIndex((ep) => ep.uuid === episodeUuid);
-
-  // Si un épisode précédent existe dans la même saison
   if (currentIndex > 0) {
     return currentSeason.value.episodes[currentIndex - 1];
   }
-
-  // Sinon, chercher la saison précédente
   const previousSeason = content.value.seasons.find(
     (season) => season.seasonNumber === currentSeason.value.seasonNumber - 1
   );
-
-  // Retourner le dernier épisode de la saison précédente si elle existe
   if (previousSeason && previousSeason.episodes.length > 0) {
-    return previousSeason.episodes.at(-1); // Dernier épisode de la saison précédente
+    return previousSeason.episodes.at(-1);
   }
-
-  // Aucun épisode précédent disponible
   return null;
 });
 
 const nextEpisode = computed(() => {
   if (!currentSeason.value) return null;
-
-  // Trouver l'index de l'épisode actuel dans la saison courante
   const currentIndex = currentSeason.value.episodes.findIndex((ep) => ep.uuid === episodeUuid);
-
-  // Si un épisode suivant existe dans la même saison
   if (currentIndex < currentSeason.value.episodes.length - 1) {
     return currentSeason.value.episodes[currentIndex + 1];
   }
-
-  // Sinon, chercher la saison suivante
   const nextSeason = content.value.seasons.find(
     (season) => season.seasonNumber === currentSeason.value.seasonNumber + 1
   );
-
-  // Retourner le premier épisode de la saison suivante si elle existe
   if (nextSeason && nextSeason.episodes.length > 0) {
     return nextSeason.episodes[0];
   }
-
-  // Aucun épisode suivant disponible
   return null;
 });
 
 const isFirstEpisode = computed(() => {
   console.log("=== Calcul de isFirstEpisode ===");
-  console.log("currentSeason:", currentSeason.value);
-  console.log("episodeUuid:", episodeUuid);
-
   if (!currentSeason.value || !currentSeason.value.episodes.length) {
-    console.log("Retourne false car currentSeason est invalide ou sans épisodes.");
     return false;
   }
-
-  const isFirst =
-    currentSeason.value.seasonNumber === 1 &&
-    currentSeason.value.episodes[0].uuid === episodeUuid;
-
-  console.log("isFirstEpisode:", isFirst);
-  return isFirst;
+  return currentSeason.value.seasonNumber === 1 && currentSeason.value.episodes[0].uuid === episodeUuid;
 });
 
 const isLastEpisode = computed(() => {
-  console.log("=== Calcul de isLastEpisode ===");
   const lastSeason = content.value.seasons.at(-1);
-  console.log("currentSeason:", currentSeason.value);
-  console.log("lastSeason:", lastSeason);
-  console.log("episodeUuid:", episodeUuid);
-
   if (!lastSeason || !lastSeason.episodes.length || !currentSeason.value) {
-    console.log("Retourne false car lastSeason ou currentSeason est invalide.");
     return false;
   }
-
-  const isLast =
-    currentSeason.value.seasonNumber === lastSeason.seasonNumber &&
-    currentSeason.value.episodes.at(-1).uuid === episodeUuid;
-
-  console.log("isLastEpisode:", isLast);
-  return isLast;
+  return currentSeason.value.seasonNumber === lastSeason.seasonNumber &&
+    lastSeason.episodes.at(-1).uuid === episodeUuid;
 });
 
-// Gestion de la navigation "Précédent"
+// Navigation functions
 const navigateToPrevious = () => {
   if (previousEpisode.value) {
     router.push(`/content-player/${contentUuid}/episode/${previousEpisode.value.uuid}`);
   }
 };
 
-// Gestion de la navigation "Suivant"
 const navigateToNext = () => {
   if (nextEpisode.value) {
     router.push(`/content-player/${contentUuid}/episode/${nextEpisode.value.uuid}`);
   }
 };
 
+// Watchers pour recharger le contenu lors des changements de route
 watch(
   () => [route.params.contentUuid, route.params.episodeUuid],
   ([newContentUuid, newEpisodeUuid], [oldContentUuid, oldEpisodeUuid]) => {
@@ -486,18 +589,11 @@ watch(
   }
 );
 
-watch(() => isFirstEpisode.value, (newVal) => {
-  console.log('isFirstEpisode:', newVal);
-});
-
-watch(() => isLastEpisode.value, (newVal) => {
-  console.log('isLastEpisode:', newVal);
-});
-
-watch(fullVideoLink, (newVal) => {
-  console.log('Lien vidéo mis à jour :', newVal);
-});
+// Watchers pour logs
+watch(() => isFirstEpisode.value, (newVal) => console.log('isFirstEpisode:', newVal));
+watch(() => isLastEpisode.value, (newVal) => console.log('isLastEpisode:', newVal));
 </script>
+
 
 <style scoped>
 .video-page {
