@@ -140,7 +140,7 @@
 
       <div class="form-group">
         <label for="genres">Genres</label>
-        <input type="email"
+        <input type="hidden"
                name="hidden1"
                id="hidden1"
                style="width: 0; height: 0; border: 0; padding: 0"/>
@@ -391,7 +391,6 @@ const handleContentUpload = async () => {
   try {
     const response = await addContent(formData);
     notificationStore.addNotification('success', `${contentTypeLabel.value} a été ajouté avec succès.`);
-    router.push('/'); // Redirection après succès
   } catch (err: any) {
     if (err.response && err.response.status === 422) {
       validationErrors.value = err.response.data.errors;

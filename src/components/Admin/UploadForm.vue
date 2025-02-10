@@ -24,7 +24,15 @@
         <label for="movieFile">Uploader la vidéo du film sélectionné</label>
         <input type="file" @change="onMovieFileSelected" accept="video/*" />
       </div>
-      <button v-if="selectedMovie && movieFile" @click="uploadMovieVideo">
+      <div v-if="selectedMovie" class="form-group">
+        <label for="adminPasswordMovie">Mot de passe admin</label>
+        <input
+          type="password"
+          v-model="adminPasswordMovie"
+          placeholder="Saisir le mot de passe admin"
+        />
+      </div>
+      <button v-if="selectedMovie && movieFile && adminPasswordMovie" @click="uploadMovieVideo">
         Uploader le film
       </button>
     </div>
@@ -53,7 +61,15 @@
         <label for="episodeFile">Uploader la vidéo de l'épisode sélectionné</label>
         <input type="file" @change="onEpisodeFileSelected" accept="video/*" />
       </div>
-      <button v-if="selectedEpisode && episodeFile" @click="uploadEpisodeVideo">
+      <div v-if="selectedEpisode" class="form-group">
+        <label for="adminPasswordEpisode">Mot de passe admin</label>
+        <input
+          type="password"
+          v-model="adminPasswordEpisode"
+          placeholder="Saisir le mot de passe admin"
+        />
+      </div>
+      <button v-if="selectedEpisode && episodeFile && adminPasswordEpisode" @click="uploadEpisodeVideoHandler">
         Uploader l'épisode
       </button>
     </div>
@@ -65,6 +81,10 @@ import { ref, onMounted } from 'vue';
 import { fetchNotUploadedContent } from '@/api/contents';
 import { fetchNotUploadedEpisodes } from '@/api/episodes';
 import { uploadContentVideo, uploadEpisodeVideo } from '@/api/uploads';
+import { useNotificationStore } from '@/stores/useNotificationStore';
+
+// Récupération du store de notifications
+const notificationStore = useNotificationStore();
 
 //
 // SECTION FILMS
@@ -72,6 +92,7 @@ import { uploadContentVideo, uploadEpisodeVideo } from '@/api/uploads';
 const notUploadedMovies = ref<any[]>([]);
 const selectedMovie = ref<any>(null);
 const movieFile = ref<File | null>(null);
+const adminPasswordMovie = ref<string>("");
 
 const loadNotUploadedMovies = async () => {
   try {
@@ -83,12 +104,14 @@ const loadNotUploadedMovies = async () => {
     }));
   } catch (error) {
     console.error("Erreur lors du chargement des films non uploadés :", error);
+    notificationStore.addNotification('error', "Erreur lors du chargement des films non uploadés.");
   }
 };
 
 const selectMovie = (movie: any) => {
   selectedMovie.value = movie;
   movieFile.value = null;
+  adminPasswordMovie.value = "";
 };
 
 const onMovieFileSelected = (event: Event) => {
@@ -99,22 +122,24 @@ const onMovieFileSelected = (event: Event) => {
 };
 
 const uploadMovieVideo = async () => {
-  if (selectedMovie.value && movieFile.value) {
+  if (selectedMovie.value && movieFile.value && adminPasswordMovie.value) {
     const formData = new FormData();
-    // Notez que le back attend 'content_uuid'
+    // Le back attend 'content_uuid' et 'admin_password'
     formData.append('content_uuid', selectedMovie.value.id);
     formData.append('video', movieFile.value);
+    formData.append('admin_password', adminPasswordMovie.value);
 
     try {
       await uploadContentVideo(formData);
-      alert("Film uploadé avec succès !");
+      notificationStore.addNotification('success', "Film uploadé avec succès !");
       // Réinitialiser la sélection et rafraîchir la liste
       selectedMovie.value = null;
       movieFile.value = null;
+      adminPasswordMovie.value = "";
       await loadNotUploadedMovies();
     } catch (error) {
       console.error("Erreur lors de l'upload du film :", error);
-      alert("Erreur lors de l'upload du film");
+      notificationStore.addNotification('error', "Erreur lors de l'upload du film.");
     }
   }
 };
@@ -125,6 +150,7 @@ const uploadMovieVideo = async () => {
 const notUploadedEpisodes = ref<any[]>([]);
 const selectedEpisode = ref<any>(null);
 const episodeFile = ref<File | null>(null);
+const adminPasswordEpisode = ref<string>("");
 
 const loadNotUploadedEpisodes = async () => {
   try {
@@ -137,12 +163,14 @@ const loadNotUploadedEpisodes = async () => {
     }));
   } catch (error) {
     console.error("Erreur lors du chargement des épisodes non uploadés :", error);
+    notificationStore.addNotification('error', "Erreur lors du chargement des épisodes non uploadés.");
   }
 };
 
 const selectEpisode = (episode: any) => {
   selectedEpisode.value = episode;
   episodeFile.value = null;
+  adminPasswordEpisode.value = "";
 };
 
 const onEpisodeFileSelected = (event: Event) => {
@@ -153,22 +181,24 @@ const onEpisodeFileSelected = (event: Event) => {
 };
 
 const uploadEpisodeVideoHandler = async () => {
-  if (selectedEpisode.value && episodeFile.value) {
+  if (selectedEpisode.value && episodeFile.value && adminPasswordEpisode.value) {
     const formData = new FormData();
-    // Notez que le back attend 'episode_uuid'
+    // Le back attend 'episode_uuid' et 'admin_password'
     formData.append('episode_uuid', selectedEpisode.value.id);
     formData.append('video', episodeFile.value);
+    formData.append('admin_password', adminPasswordEpisode.value);
 
     try {
       await uploadEpisodeVideo(formData);
-      alert("Épisode uploadé avec succès !");
+      notificationStore.addNotification('success', "Épisode uploadé avec succès !");
       // Réinitialiser la sélection et rafraîchir la liste
       selectedEpisode.value = null;
       episodeFile.value = null;
+      adminPasswordEpisode.value = "";
       await loadNotUploadedEpisodes();
     } catch (error) {
       console.error("Erreur lors de l'upload de l'épisode :", error);
-      alert("Erreur lors de l'upload de l'épisode");
+      notificationStore.addNotification('error', "Erreur lors de l'upload de l'épisode.");
     }
   }
 };
@@ -180,6 +210,7 @@ onMounted(async () => {
 </script>
 
 <style scoped>
+/* (Vos styles restent inchangés) */
 .upload-form {
   background-color: #100f10;
   padding: 30px;

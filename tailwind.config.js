@@ -16,7 +16,7 @@ module.exports = {
       },
     },
     screens: {
-      'xl-custom': '1100px', // Nouveau breakpoint pour 1100px
+      'xl-custom': '1100px', // Sidebar breakpoint
     },
   },
   plugins: [],

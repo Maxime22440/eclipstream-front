@@ -15,12 +15,8 @@
                @load="imageLoaded = true"
                class="poster-image"
                :class="{ 'loaded': imageLoaded }"/>
-
-          <!-- Si l'image n'est pas disponible -->
-          <div v-else
-               class="poster-placeholder"
-               :class="{ 'hidden': imageLoaded }">
-            <MovieIcon class="poster-icon"/>
+          <div v-if="!imageLoaded" class="poster-loading">
+            <i class="fas fa-spinner fa-spin"></i>
           </div>
           <template v-if="imageLoaded">
             <button v-if="isAuthenticated"
@@ -92,12 +88,12 @@
             </div>
           </div>
 
-          <!-- Partie droite (Détails du film) -->
+          <!-- Partie droite (Détails du content) -->
           <div class="details">
             <!-- Titre et notation -->
             <div class="title-rating">
-              <!-- Titre de la série -->
-              <span class="series-title">{{ content.title }}</span>
+              <!-- Titre du content -->
+              <span class="content-title">{{ content.title }}</span>
 
               <!-- Titre de l'épisode et rating (uniquement si épisode présent) -->
               <template v-if="episode">
@@ -594,14 +590,13 @@ watch(() => isFirstEpisode.value, (newVal) => console.log('isFirstEpisode:', new
 watch(() => isLastEpisode.value, (newVal) => console.log('isLastEpisode:', newVal));
 </script>
 
-
 <style scoped>
 .video-page {
   display: flex;
   flex-direction: column;
   background-color: #100f10;
   color: #ffffff;
-  padding: 30px 15px 15px;
+  padding: 0px 15px 15px;
   width: 100%;
   margin: auto;
 }
@@ -610,7 +605,7 @@ watch(() => isLastEpisode.value, (newVal) => console.log('isLastEpisode:', newVa
 .video-poster {
   position: relative;
   width: 100%;
-  height: 500px;
+  height: 520px;
   background-color: #161616;
   overflow: hidden;
   border-radius: 15px;
@@ -660,13 +655,12 @@ watch(() => isLastEpisode.value, (newVal) => console.log('isLastEpisode:', newVa
 
 .video-js {
   width: 100%;
-  height: 500px;
+  height: 520px;
   object-fit: contain;
   background-color: black;
   border-radius: 15px;
 }
 
-/* Content under the video */
 .video-content {
   display: flex;
   gap: 30px;
@@ -684,7 +678,6 @@ watch(() => isLastEpisode.value, (newVal) => console.log('isLastEpisode:', newVa
   border-radius: 10px;
 }
 
-/* Thumbnail Placeholder */
 .thumbnail-placeholder,
 .poster-placeholder {
   display: flex;
@@ -692,28 +685,24 @@ watch(() => isLastEpisode.value, (newVal) => console.log('isLastEpisode:', newVa
   align-items: center;
   width: 100%;
   height: 100%;
-  background-color: #1c1a1c; /* Couleur de fond */
-  transition: opacity 0.8s cubic-bezier(0.25, 1, 0.5, 1), transform 0.8s cubic-bezier(0.25, 1, 0.5, 1); /* Transition fluide */
+  background-color: #1c1a1c;
+  transition: opacity 0.8s cubic-bezier(0.25, 1, 0.5, 1), transform 0.8s cubic-bezier(0.25, 1, 0.5, 1);
   transform: scale(1);
+}
+
+.poster-loading {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 4;
+  font-size: 3rem;
+  color: #00CC9B;
 }
 
 .poster-placeholder {
   width: 100%;
   height: 500px;
-}
-
-/* Icônes (MovieIcon) */
-.thumbnail-icon,
-.poster-icon {
-  width: 60px; /* Taille de l'icône pour les thumbnails */
-  height: 60px;
-  color: #00CC9B; /* Couleur de l'icône */
-  opacity: 0.8; /* Opacité pour un effet subtil */
-}
-
-.poster-icon {
-  width: 100px; /* Taille plus grande pour le poster */
-  height: 100px;
 }
 
 /* Poster Image */
@@ -722,31 +711,29 @@ watch(() => isLastEpisode.value, (newVal) => console.log('isLastEpisode:', newVa
   width: 100%;
   height: 100%;
   object-fit: cover;
-  transition: opacity 0.8s cubic-bezier(0.25, 1, 0.5, 1), transform 0.8s cubic-bezier(0.25, 1, 0.5, 1); /* Transition fluide */
-  transform: scale(1.05); /* Commence légèrement agrandie */
+  transition: opacity 0.8s cubic-bezier(0.25, 1, 0.5, 1), transform 0.8s cubic-bezier(0.25, 1, 0.5, 1);
+  transform: scale(1.05);
 }
 
 .poster-placeholder.hidden,
 .thumbnail-placeholder.hidden {
   opacity: 0;
-  transform: scale(0.95); /* Rétrécissement lors de la transition */
-  pointer-events: none; /* Désactive les interactions */
-  filter: blur(4px); /* Ajoute un léger flou pendant la transition */
+  transform: scale(0.95);
+  pointer-events: none;
+  filter: blur(4px);
 }
 
-/* Image après chargement */
 .poster-image.loaded,
 .thumbnail-image.loaded {
-  opacity: 0.4; /* Visible */
-  transform: scale(1); /* Retourne à la taille normale */
+  opacity: 0.4;
+  transform: scale(1);
 }
 
 .thumbnail-image.loaded {
-  opacity: 0.9; /* Visible */
-  transform: scale(1); /* Retourne à la taille normale */
+  opacity: 0.9;
+  transform: scale(1);
 }
 
-/* Right side (details) */
 .details {
   flex: 3;
   display: flex;
@@ -756,21 +743,21 @@ watch(() => isLastEpisode.value, (newVal) => console.log('isLastEpisode:', newVa
 
 .title-rating {
   display: flex;
-  flex-wrap: wrap; /* Permet aux éléments de passer à la ligne si nécessaire */
-  align-items: center; /* Centre verticalement les éléments sur une ligne */
-  gap: 10px; /* Espacement horizontal entre les blocs */
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
 }
 
-.series-title {
+.content-title {
   font-size: 35px;
   font-weight: bold;
-  white-space: nowrap; /* Empêche le titre de se couper */
+  white-space: normal;
 }
 
 .episode-rating {
   display: flex;
-  align-items: center; /* Aligne le titre de l'épisode et la note */
-  gap: 10px; /* Espace entre le titre de l'épisode et la note */
+  align-items: center;
+  gap: 10px;
 }
 
 .episode-title {
@@ -783,14 +770,14 @@ watch(() => isLastEpisode.value, (newVal) => console.log('isLastEpisode:', newVa
   display: flex;
   align-items: center;
   font-size: 16px;
-  color: #00cc9b; /* Couleur de la note */
+  color: #00cc9b;
   font-weight: bold;
-  white-space: nowrap; /* Empêche la note de se couper */
+  white-space: nowrap;
 }
 
 .rating i {
   font-size: 14px;
-  margin-right: 5px; /* Espace entre l'étoile et la note */
+  margin-right: 5px;
   position: relative;
   top: -1px;
 }
@@ -835,7 +822,7 @@ watch(() => isLastEpisode.value, (newVal) => console.log('isLastEpisode:', newVa
 }
 
 .cast-list span {
-  white-space: nowrap; /* Empêche un acteur d'être coupé sur deux lignes */
+  white-space: nowrap;
 }
 
 @media (max-width: 1100px) {

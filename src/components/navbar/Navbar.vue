@@ -22,25 +22,6 @@
                 </div>
             </div>
 
-            <!-- Navigation Links -->
-            <div class="flex justify-start items-center gap-8 links">
-                <a
-                    href="#"
-                    class="text-off-white hover:text-main-green transition-all text-base"
-                    >Films</a
-                >
-                <a
-                    href="#"
-                    class="text-off-white hover:text-main-green transition-all text-base"
-                    >Séries TV</a
-                >
-                <a
-                    href="#"
-                    class="text-off-white hover:text-main-green transition-all text-base"
-                    >Animé</a
-                >
-            </div>
-
             <!-- Barre de recherche et Icône Profil -->
             <div class="ml-auto flex items-center">
                 <!-- Affiche l'icône de loupe sous 1100px -->
@@ -55,7 +36,7 @@
                 <!-- Barre de recherche visible au-dessus de 1100px -->
                 <div class="search-bar">
                     <div
-                        class="flex items-center bg-gray-800 text-gray-400 px-6 py-2 rounded-full font-sans min-w-[250px]"
+                        class="flex items-center  text-gray-400 px-6 py-2 rounded-full font-sans min-w-[250px]"
                     >
                         <i class="fas fa-search"></i>
                         <input
@@ -249,7 +230,6 @@ const isAuthPage = computed(() => {
 }
 
 .search-bar .flex {
-    background-color: #100f10; /* Couleur personnalisée du fond de la barre */
     color: #e0e0e0; /* Couleur du texte */
     padding: 0.5rem 1.3rem; /* Ajuste les marges internes */
     border-radius: 10px; /* Rendre la barre plus arrondie */
